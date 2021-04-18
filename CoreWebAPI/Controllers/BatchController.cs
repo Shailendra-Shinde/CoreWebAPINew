@@ -5,6 +5,9 @@ using CoreWebAPI.Models;
 using Microsoft.Extensions.Logging;
 using CoreWebAPI.Repository;
 using CoreWebAPI.Filters;
+using System.Threading.Tasks;
+using CoreWebAPI.Interfaces;
+using System.IO;
 
 namespace CoreWebAPI.Controllers
 {
@@ -16,11 +19,13 @@ namespace CoreWebAPI.Controllers
         //private readonly BatchContext _context;
         private readonly IBatchRepository _batchRepository;
         private readonly ILogger<BatchController> _logger;
+        public IFileUpload FileUpload { get; }
 
-        public BatchController(IBatchRepository batchRepository, ILogger<BatchController> logger)
+        public BatchController(IBatchRepository batchRepository, ILogger<BatchController> logger, IFileUpload fileUpload)
         {
             _batchRepository = batchRepository;
             _logger = logger;
+            FileUpload = fileUpload;
         }
 
         // GET: api/Batch
@@ -55,7 +60,7 @@ namespace CoreWebAPI.Controllers
                     return StatusCode(StatusCodes.Status410Gone, "The Batch has been expired and is no longer available.");
                 }
 
-
+                _logger.LogInformation("Batch ID - {0} info is retrieved.", batchViewModel.Id);
                 return batchViewModel;
             }
             catch(Exception ex)
@@ -65,23 +70,44 @@ namespace CoreWebAPI.Controllers
             }
         }
 
-        // POST: api/Batch
-        // To protect from overposting attacks, enable the specific properties you want to bind to, for
-        // more details, see https://go.microsoft.com/fwlink/?linkid=2123754.
         [HttpPost]
-        public ActionResult PostBatchViewModel(BatchViewModel batchViewModel)
+        public async Task<ActionResult> PostBatchViewModelAsync(BatchViewModel batchViewModel)
         {
             try
             {
                 if (ModelState.IsValid)
                 {
                     BatchViewModel newbatchViewModel = _batchRepository.AddBatchDetails(batchViewModel);
+                    await FileUpload.CreateContainer(newbatchViewModel.Id);
 
                     //return CreatedAtAction("GetBatchGuid", new { id = batchViewModel.Id }, batchViewModel);
                     return Created(HttpContext.Request.Scheme + "://" + HttpContext.Request.Host + HttpContext.Request.Path + "/" + newbatchViewModel.Id, new { batchId = newbatchViewModel.Id });
                 }
 
                 return NotFound();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error");
+                return Content(ex.ToString());
+            }
+        }
+
+        [HttpPost("{batchId}/{filename}")]
+        public async Task<IActionResult> PostUploadFile(Guid batchId, string filename)
+        {
+            try
+            {
+                // Create a local file in the ./UploadedFiles/ directory for uploading
+                string localPath = "./UploadedFiles/";
+                string fileName = filename + ".txt";
+                string localFilePath = Path.Combine(localPath, fileName);
+
+                // Write text to the file
+                await System.IO.File.WriteAllTextAsync(localFilePath, "Hello, World!");
+
+                await FileUpload.UploadFile(batchId, filename, localFilePath);
+                return Ok();
             }
             catch (Exception ex)
             {

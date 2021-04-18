@@ -12,6 +12,7 @@ using System;
 using System.Reflection;
 using System.IO;
 using CoreWebAPI.Repository;
+using CoreWebAPI.Interfaces;
 
 namespace CoreWebAPI
 {
@@ -100,6 +101,7 @@ namespace CoreWebAPI
 
             services.AddScoped<IBatchRepository, BatchRepository>();
             services.AddScoped<ValidationFilter>();
+            services.AddTransient<IFileUpload, AzureSender>();
             //services.AddTransient<IValidator<Models.Attribute>, AttributeValidator>();
         }
 
