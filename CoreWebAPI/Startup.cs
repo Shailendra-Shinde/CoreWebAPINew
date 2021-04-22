@@ -13,6 +13,10 @@ using System.Reflection;
 using System.IO;
 using CoreWebAPI.Repository;
 using CoreWebAPI.Interfaces;
+using Microsoft.Extensions.Azure;
+using Azure.Storage.Queues;
+using Azure.Storage.Blobs;
+using Azure.Core.Extensions;
 
 namespace CoreWebAPI
 {
@@ -62,7 +66,7 @@ namespace CoreWebAPI
             });
 
             services.AddDbContext<BatchContext>(options =>
-            options.UseSqlServer(Configuration.GetConnectionString("DefaultConnection")));
+            options.UseSqlServer(Configuration.GetValue<string>("SqlDefaultConnection")));
 
             //services.AddMvc(setup => {
             //    //...mvc setup...
@@ -102,6 +106,11 @@ namespace CoreWebAPI
             services.AddScoped<IBatchRepository, BatchRepository>();
             services.AddScoped<ValidationFilter>();
             services.AddTransient<IFileUpload, AzureSender>();
+            services.AddAzureClients(builder =>
+            {
+                builder.AddBlobServiceClient(Configuration["ConnectionStrings:StorageConnectionString:blob"], preferMsi: true);
+                builder.AddQueueServiceClient(Configuration["ConnectionStrings:StorageConnectionString:queue"], preferMsi: true);
+            });
             //services.AddTransient<IValidator<Models.Attribute>, AttributeValidator>();
         }
 
@@ -151,6 +160,31 @@ namespace CoreWebAPI
             //        name: "default",
             //        pattern: "{controller}/{action}/{id?}");
             //});
+        }
+    }
+    internal static class StartupExtensions
+    {
+        public static IAzureClientBuilder<BlobServiceClient, BlobClientOptions> AddBlobServiceClient(this AzureClientFactoryBuilder builder, string serviceUriOrConnectionString, bool preferMsi)
+        {
+            if (preferMsi && Uri.TryCreate(serviceUriOrConnectionString, UriKind.Absolute, out Uri serviceUri))
+            {
+                return builder.AddBlobServiceClient(serviceUri);
+            }
+            else
+            {
+                return builder.AddBlobServiceClient(serviceUriOrConnectionString);
+            }
+        }
+        public static IAzureClientBuilder<QueueServiceClient, QueueClientOptions> AddQueueServiceClient(this AzureClientFactoryBuilder builder, string serviceUriOrConnectionString, bool preferMsi)
+        {
+            if (preferMsi && Uri.TryCreate(serviceUriOrConnectionString, UriKind.Absolute, out Uri serviceUri))
+            {
+                return builder.AddQueueServiceClient(serviceUri);
+            }
+            else
+            {
+                return builder.AddQueueServiceClient(serviceUriOrConnectionString);
+            }
         }
     }
 }

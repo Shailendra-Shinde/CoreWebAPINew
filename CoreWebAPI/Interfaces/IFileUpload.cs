@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Blob;
 using Microsoft.WindowsAzure.Storage.Queue;
+using Polly;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -31,7 +32,13 @@ namespace CoreWebAPI.Interfaces
         public async Task CreateContainer(Guid guid)
         {
             var connString = Configuration.GetValue<string>("StorageConnectionString");
-            await CreateContainerInstance(guid, connString);
+            var retryPolicy = Policy.Handle<StorageException>()
+                .RetryAsync(2, async (ex, count, context) =>
+                {
+                    (Configuration as IConfigurationRoot).Reload();
+                    connString = Configuration.GetValue<string>("StorageConnectionString");
+                });
+            await retryPolicy.ExecuteAsync(() => CreateContainerInstance(guid, connString));
         }
 
         public static async Task CreateContainerInstance(Guid guid, string connString)

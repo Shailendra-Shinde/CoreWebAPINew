@@ -8,6 +8,8 @@ using CoreWebAPI.Filters;
 using System.Threading.Tasks;
 using CoreWebAPI.Interfaces;
 using System.IO;
+using System.ComponentModel.DataAnnotations;
+using System.Text;
 
 namespace CoreWebAPI.Controllers
 {
@@ -94,19 +96,31 @@ namespace CoreWebAPI.Controllers
         }
 
         [HttpPost("{batchId}/{filename}")]
-        public async Task<IActionResult> PostUploadFile(Guid batchId, string filename)
+        public async Task<IActionResult> PostUploadFile(Guid batchId, string filename,
+        [Required][FromHeader(Name = "X-Content-Size")] long size,
+        [FromHeader(Name = "X-MIME-Type")] string mime = "application/octet-stream")
         {
             try
             {
                 // Create a local file in the ./UploadedFiles/ directory for uploading
-                string localPath = "./UploadedFiles/";
-                string fileName = filename + ".txt";
-                string localFilePath = Path.Combine(localPath, fileName);
+                //string localPath = "./UploadedFiles/";
+                //string fileName = filename + ".txt";
+
+                string filepath = Directory.GetCurrentDirectory() + @"\" + filename;
+                //string localFilePath = Path.Combine(filepath, filename);
 
                 // Write text to the file
-                await System.IO.File.WriteAllTextAsync(localFilePath, "Hello, World!");
+                //await System.IO.File.WriteAllTextAsync(localFilePath, "Hello, World!");
 
-                await FileUpload.UploadFile(batchId, filename, localFilePath);
+                FileInfo fi = new FileInfo(filepath);
+                using (FileStream fs = fi.Create())
+                {
+                    fs.SetLength(size);
+                }
+                using var fs_ = new FileStream(filepath, FileMode.Open, FileAccess.Read);
+                using var sr = new StreamReader(fs_, Encoding.UTF8);
+
+                await FileUpload.UploadFile(batchId, filename, filepath);
                 return Ok();
             }
             catch (Exception ex)
